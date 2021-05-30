@@ -2,6 +2,7 @@ from socket import AF_INET, socket, SOCK_STREAM
 from threading import Thread
 from time import sleep
 
+#All commands available to use
 def commands(client):
     sleep(0.01)
     command = ">> Commands:"
@@ -13,15 +14,17 @@ def commands(client):
     client.send(bytes(command, "utf8"))
     command = "* !help - To view all the commands"
     client.send(bytes(command, "utf8"))
-    
 
+    
+#To close a connection
 def close_connection(client, name, address, clients):
     print("%s:%s has disconnected." % address)
     client.close()
     del clients[client]
-    broadcast(bytes("%s has left the chat." % name, "utf8"))
+    if (name != ""):
+        broadcast(bytes("%s has left the chat." % name, "utf8"))
                 
-    
+#To accept the connection requests
 def accept_incoming_connections():
    
     while True:
@@ -32,10 +35,18 @@ def accept_incoming_connections():
         addresses[client] = client_address
         Thread(target=handle_client, args=(client,)).start()
 
+#To send the message to all the present connections
+def broadcast(msg, prefix=""): 
 
+    for sock in clients:
+        sock.send(bytes(prefix, "utf8")+msg)
+
+#To handle the incoming messages appropriately
 def handle_client(client):
 
     try:
+        #for new connections
+        clients[client] = ""
         name = ""
         name = client.recv(BUFSIZ).decode("utf8")
         print(name," <= ",addresses[client])
@@ -44,49 +55,43 @@ def handle_client(client):
         client.send(bytes(welcome, "utf8"))
     
         commands(client)
-        #command = ">> Commands:"
-        #client.send(bytes(command, "utf8"))
-        #command1 = '* !quit - To quit application'
-        #client.send(bytes(">> !quit - To quit application", "utf8"))
     
         msg = "%s has joined the chat!" % name
         broadcast(bytes(msg, "utf8"))
         clients[client] = name
 
+        #incoming messages handling
+
         while True:
             msg = client.recv(BUFSIZ)
             dis = (bytes("!quit", "utf8"),bytes("!discon", "utf8"))
+
+            #handling disconnect request
             if msg in dis:
                 client.send(msg)
-                #client.send(bytes("{quit}", "utf8"))
-                '''print("%s:%s has disconnected." % addresses[client])
-                client.close()
-                del clients[client]
-                broadcast(bytes("%s has left the chat." % name, "utf8"))'''
-                print(clients)
+                #print(clients)
                 close_connection(client, name, addresses[client], clients)
-                print(clients)
+                #print(clients)
                 break
+            
+            #to show present commands
             elif msg == bytes("!help","utf8"):
                 commands(client)
-                #if msg not in dis:
+
+            #broadcasting messages
             else:
-                #msg != bytes("{quit}", "utf8"):
                 broadcast(msg, name+": ")
-                
+
+    #handling connection errors
     except Exception as e:
-        if name != "":
+        close_connection(client, name, addresses[client], clients)
+        '''if name != "":
             close_connection(client, name, addresses[client], clients)
         else:
-            print("%s:%s has disconnected." % addresses[client])
+            print("%s:%s has disconnected." % addresses[client])'''
         print("Connection ERROR")
 
-def broadcast(msg, prefix=""): 
-
-    for sock in clients:
-        sock.send(bytes(prefix, "utf8")+msg)
-
-        
+#global variables
 clients = {}
 addresses = {}
 
@@ -98,6 +103,8 @@ ADDR = (HOST, PORT)
 SERVER = socket(AF_INET, SOCK_STREAM)
 SERVER.bind(ADDR)
 
+
+#Main for accepting multiple connections
 if __name__ == "__main__":
     SERVER.listen(5)
     print("Waiting for connection...")
